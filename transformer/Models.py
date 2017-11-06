@@ -134,9 +134,11 @@ class Transformer(nn.Module):
     ''' A sequence to sequence model with attention mechanism. '''
 
     def __init__(
-            self, n_src_vocab, n_tgt_vocab, n_max_seq, n_layers=6, n_head=8,
+            self, n_src_vocab, n_tgt_vocab, n_max_seq, n_organisms,
+            n_layers=6, n_head=8,
             d_word_vec=512, d_model=512, d_inner_hid=1024, d_k=64, d_v=64,
-            dropout=0.1, proj_share_weight=True, embs_share_weight=True):
+            dropout=0.1, d_organism=64,
+            proj_share_weight=True, embs_share_weight=True):
 
         super(Transformer, self).__init__()
         self.encoder = Encoder(
@@ -147,8 +149,9 @@ class Transformer(nn.Module):
             n_tgt_vocab, n_max_seq, n_layers=n_layers, n_head=n_head,
             d_word_vec=d_word_vec, d_model=d_model,
             d_inner_hid=d_inner_hid, dropout=dropout)
-        self.tgt_word_proj = Linear(d_model, n_tgt_vocab, bias=False)
+        self.tgt_word_proj = Linear(d_model + d_organism, n_tgt_vocab, bias=False)
         self.dropout = nn.Dropout(dropout)
+        self.organism_enc = nn.Embedding(n_organisms, d_organism)
 
         assert d_model == d_word_vec, \
         'To facilitate the residual connections, the dimensions of all module output shall be the same.'
@@ -172,7 +175,7 @@ class Transformer(nn.Module):
         freezed_param_ids = enc_freezed_param_ids | dec_freezed_param_ids
         return (p for p in self.parameters() if id(p) not in freezed_param_ids)
 
-    def forward(self, src, tgt):
+    def forward(self, src, tgt, org):
         src_seq, src_pos = src
         tgt_seq, tgt_pos = tgt
 
@@ -183,6 +186,9 @@ class Transformer(nn.Module):
         dec_outputs, dec_slf_attns, dec_enc_attns = self.decoder(
             tgt_seq, tgt_pos, src_seq, enc_outputs)
         dec_output = dec_outputs[-1]
+        org_input = self.organism_enc(org)
+        org_input = org_input.expand(dec_output.size())
+        dec_output = torch.cat((dec_output, org_input), dim=-1)
 
         seq_logit = self.tgt_word_proj(dec_output)
 

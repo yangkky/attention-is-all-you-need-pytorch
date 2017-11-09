@@ -151,7 +151,10 @@ class Transformer(nn.Module):
             d_inner_hid=d_inner_hid, dropout=dropout)
         self.tgt_word_proj = Linear(d_model + d_organism, n_tgt_vocab, bias=False)
         self.dropout = nn.Dropout(dropout)
-        self.organism_enc = nn.Embedding(n_organisms, d_organism)
+        if d_organism > 0:
+            self.organism_enc = nn.Embedding(n_organisms, d_organism)
+        else:
+            self.organism_enc = None
 
         assert d_model == d_word_vec, \
         'To facilitate the residual connections, the dimensions of all module output shall be the same.'
@@ -186,10 +189,10 @@ class Transformer(nn.Module):
         dec_outputs, dec_slf_attns, dec_enc_attns = self.decoder(
             tgt_seq, tgt_pos, src_seq, enc_outputs)
         dec_output = dec_outputs[-1]
-        org_input = self.organism_enc(org)
-        org_input = org_input.expand(dec_output.size())
-        dec_output = torch.cat((dec_output, org_input), dim=-1)
-
+        if self.organism_enc is not None:
+            org_input = self.organism_enc(org)
+            org_input = org_input.repeat(1, dec_output.size()[1], 1)
+            dec_output = torch.cat((dec_output, org_input), dim=-1)
         seq_logit = self.tgt_word_proj(dec_output)
 
         return seq_logit.view(-1, seq_logit.size(2))

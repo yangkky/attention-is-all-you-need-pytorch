@@ -55,17 +55,17 @@ class Encoder(nn.Module):
         self.position_enc = nn.Embedding(n_position, d_word_vec, padding_idx=Constants.PAD)
         self.position_enc.weight.data = position_encoding_init(n_position, d_word_vec)
 
-        self.src_word_emb = nn.Embedding(n_src_vocab, d_word_vec, padding_idx=Constants.PAD)
-
         self.layer_stack = nn.ModuleList([
             EncoderLayer(d_model, d_inner_hid, n_head, d_k, d_v, dropout=dropout)
             for _ in range(n_layers)])
 
     def forward(self, src_seq, src_pos):
         # Word embedding look up
-        enc_input = self.src_word_emb(src_seq)
-
-        # Position Encoding addition
+        bs, L = src_seq.size()
+        enc_input = torch.zeros(bs, L, self.d_model).scatter_(
+                2, torch.unsqueeze(src_seq.data, 2), 1.0)
+        enc_input = torch.autograd.Variable(enc_input)
+            # Position Encoding addition
         enc_input += self.position_enc(src_pos)
         enc_outputs, enc_slf_attns = [], []
 
@@ -94,8 +94,6 @@ class Decoder(nn.Module):
             n_position, d_word_vec, padding_idx=Constants.PAD)
         self.position_enc.weight.data = position_encoding_init(n_position, d_word_vec)
 
-        self.tgt_word_emb = nn.Embedding(
-            n_tgt_vocab, d_word_vec, padding_idx=Constants.PAD)
         self.dropout = nn.Dropout(dropout)
 
         self.layer_stack = nn.ModuleList([
@@ -104,8 +102,10 @@ class Decoder(nn.Module):
 
     def forward(self, tgt_seq, tgt_pos, src_seq, enc_outputs):
         # Word embedding look up
-        dec_input = self.tgt_word_emb(tgt_seq)
-
+        bs, L = tgt_seq.size()
+        dec_input = torch.zeros(bs, L, self.d_model).scatter_(
+                        2, torch.unsqueeze(tgt_seq.data, 2), 1.0)
+        dec_input = torch.autograd.Variable(dec_input)
         # Position Encoding addition
         dec_input += self.position_enc(tgt_pos)
 
@@ -159,17 +159,6 @@ class Transformer(nn.Module):
         assert d_model == d_word_vec, \
         'To facilitate the residual connections, the dimensions of all module output shall be the same.'
 
-        if proj_share_weight:
-            # Share the weight matrix between tgt word embedding/projection
-            assert d_model == d_word_vec
-            self.tgt_word_proj.weight = self.decoder.tgt_word_emb.weight
-
-        if embs_share_weight:
-            # Share the weight matrix between src/tgt word embeddings
-            # assume the src/tgt word vec size are the same
-            assert n_src_vocab == n_tgt_vocab, \
-            "To share word embedding table, the vocabulary size of src/tgt shall be the same."
-            self.encoder.src_word_emb.weight = self.decoder.tgt_word_emb.weight
 
     def get_trainable_parameters(self):
         ''' Avoid updating the position encoding '''

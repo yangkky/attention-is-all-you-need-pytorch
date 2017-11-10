@@ -94,8 +94,6 @@ class Decoder(nn.Module):
             n_position, d_word_vec, padding_idx=Constants.PAD)
         self.position_enc.weight.data = position_encoding_init(n_position, d_word_vec)
 
-        self.dropout = nn.Dropout(dropout)
-
         self.layer_stack = nn.ModuleList([
             DecoderLayer(d_model, d_inner_hid, n_head, d_k, d_v, dropout=dropout)
             for _ in range(n_layers)])
@@ -150,7 +148,6 @@ class Transformer(nn.Module):
             d_word_vec=d_word_vec, d_model=d_model,
             d_inner_hid=d_inner_hid, dropout=dropout)
         self.tgt_word_proj = Linear(d_model + d_organism, n_tgt_vocab, bias=False)
-        self.dropout = nn.Dropout(dropout)
         if d_organism > 0:
             self.organism_enc = nn.Embedding(n_organisms, d_organism)
         else:

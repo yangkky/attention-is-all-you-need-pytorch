@@ -80,7 +80,6 @@ class ScaledDotProductAttention(nn.Module):
     def forward(self, q, k, v, attn_mask=None):
 
         attn = torch.bmm(q, k.transpose(1, 2)) / self.temper
-
         if attn_mask is not None:
 
             assert attn_mask.size() == attn.size(), \
@@ -89,7 +88,6 @@ class ScaledDotProductAttention(nn.Module):
                     '{}.'.format(attn_mask.size(), attn.size())
 
             attn.data.masked_fill_(attn_mask, -float('inf'))
-
         attn = self.softmax(attn)
         attn = self.dropout(attn)
         output = torch.bmm(attn, v)

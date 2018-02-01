@@ -62,7 +62,11 @@ class Encoder(nn.Module):
     def forward(self, src_seq, src_pos):
         # Word embedding look up
         bs, L = src_seq.size()
-        enc_input = torch.zeros(bs, L, self.d_model).scatter_(
+        enc_input = torch.zeros(bs, L, self.d_model)
+
+        if src_seq.is_cuda:
+            enc_input = enc_input.cuda()
+        enc_input = enc_input.scatter_(
                 2, torch.unsqueeze(src_seq.data, 2), 1.0)
         enc_input = torch.autograd.Variable(enc_input)
             # Position Encoding addition
@@ -101,7 +105,10 @@ class Decoder(nn.Module):
     def forward(self, tgt_seq, tgt_pos, src_seq, enc_outputs):
         # Word embedding look up
         bs, L = tgt_seq.size()
-        dec_input = torch.zeros(bs, L, self.d_model).scatter_(
+        dec_input = torch.zeros(bs, L, self.d_model)
+        if tgt_seq.is_cuda:
+            dec_input = dec_input.cuda()
+        dec_input = dec_input.scatter_(
                         2, torch.unsqueeze(tgt_seq.data, 2), 1.0)
         dec_input = torch.autograd.Variable(dec_input)
         # Position Encoding addition
@@ -170,7 +177,6 @@ class Transformer(nn.Module):
 
         tgt_seq = tgt_seq[:, :-1]
         tgt_pos = tgt_pos[:, :-1]
-
         enc_outputs, enc_slf_attns = self.encoder(src_seq, src_pos)
         dec_outputs, dec_slf_attns, dec_enc_attns = self.decoder(
             tgt_seq, tgt_pos, src_seq, enc_outputs)
